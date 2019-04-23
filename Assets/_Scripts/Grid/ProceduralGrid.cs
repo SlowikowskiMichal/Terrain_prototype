@@ -3,17 +3,22 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-[RequireComponent (typeof(MeshFilter),typeof(MeshRenderer))]
+[RequireComponent (typeof(MeshFilter),typeof(MeshRenderer),typeof(MeshCollider))]
 public class ProceduralGrid : MonoBehaviour
 {
+    public float cellSize = 1f;
+    public float gridOffset;
+    public float gridOffsetAdd;
+    public int gridSize;
+    public float terrainMovementTime = 0.01f;
+    Color[] vertexColor;
     Mesh mesh;
     MeshCollider collider;
     Vector3[] vertices;
     int[] triangles;
-
-    public float cellSize;
-    public float gridOffset;
-    public int gridSize;
+    float timePassedSinceLastMove;
+    int _gridSize;
+    bool currentGrid = false;
 
     private void Awake()
     {
@@ -23,35 +28,57 @@ public class ProceduralGrid : MonoBehaviour
 
     void Start()
     {
+        timePassedSinceLastMove = 0;
         MakeProceduralGrid();
         UpdateMesh();
+        collider.sharedMesh = mesh;
+        _gridSize = gridSize;
+    }
+
+    void OnTriggerEnter(Collider other)
+    {
+        if(other.tag == "Player")
+        {
+            currentGrid = true;
+        }
+    }
+
+    void OnTriggerExit(Collider other)
+    {
+        if(other.tag == "Player")
+        {
+            currentGrid = false;
+        }
+    }
+
+    void Update()
+    {
+        gridOffset += gridOffsetAdd;
+        if(_gridSize == gridSize)
+        {
+            RecalculateVertexPosition();
+        }
+        else
+        {
+            _gridSize = gridSize;
+            MakeProceduralGrid();
+        }
+        UpdateMesh();
+        if(currentGrid)
+        {
+            collider.sharedMesh = mesh;
+            Debug.Log("Qaz");
+        }
     }
 
     private void MakeProceduralGrid()
     {
         vertices = new Vector3[(gridSize+1)*(gridSize+1)];
+        vertexColor = new Color[(gridSize+1)*(gridSize+1)];
         triangles = new int[6 * gridSize* gridSize];
-
-        float vertexOffset = cellSize * 0.5f;
-
-        System.Random r = new System.Random() ;
         
-        for(int i = 0; i <= gridSize; i++)
-        {
-            for(int j = 0; j <= gridSize; j++)
-            {
-                vertices[i * (gridSize + 1) + j] = new Vector3(i * cellSize - vertexOffset, (float)r.NextDouble(), j * cellSize - vertexOffset);
-            }
-        }
+        RecalculateVertexPosition();
 
-        /*
-                vertices[0] = new Vector3(-vertexOffset, 0, -vertexOffset);
-                vertices[1] = new Vector3(-vertexOffset, 0, vertexOffset);
-                vertices[2] = new Vector3(vertexOffset, 0, -vertexOffset);
-                vertices[3] = new Vector3(vertexOffset, 0, vertexOffset);
-                */
-
-        //triangles = new int[] { 0, 1, 2, 2, 1, 3 };
         int k = 0;
         for (int i = 0; i < gridSize; i++)
         {
@@ -64,18 +91,7 @@ public class ProceduralGrid : MonoBehaviour
                 triangles[k++] = i * (gridSize + 1) + j + 1;
                 triangles[k++] = (i + 1) * (gridSize + 1) + j + 1;
             }
-                
-          //  Debug.Log($"{triangles[k-6]},{triangles[k-5]},{triangles[k-4]},{triangles[k-3]}," +
-        //        $"{triangles[k-2]},{triangles[k-1]}");
         }
-        
-/*
-        triangles = new int[] { 0, 1, 3, 3, 1, 4,
-        1,2,4,4,2,5,
-        3,4,6,6,4,7,
-        4,5,7,7,5,8};
-        */
-       
     }
 
     private void UpdateMesh()
@@ -84,10 +100,22 @@ public class ProceduralGrid : MonoBehaviour
 
         mesh.vertices = vertices;
         mesh.triangles = triangles;
-
+        mesh.colors = vertexColor;
         mesh.RecalculateNormals();
+    }
 
-        collider.sharedMesh = mesh;
+    private void RecalculateVertexPosition()
+    {
+        float vertexOffset = cellSize * 0.5f;
+
+        for(int i = 0; i <= gridSize; i++)
+        {
+            for(int j = 0; j <= gridSize; j++)
+            {
+                vertices[i * (gridSize + 1) + j] = new Vector3(i * cellSize - vertexOffset, Mathf.PerlinNoise((float)(i)*0.1f+gridOffset,(float)(j)*0.1f+gridOffset)*10f, j * cellSize - vertexOffset);
+                vertexColor[i * (gridSize + 1) + j] = new Color(vertices[i * (gridSize + 1) + j].y*0.1f,1f - vertices[i * (gridSize + 1) + j].y*0.1f,0,1);
+            }
+        }
     }
 
     [ContextMenu("Create Mesh")]
@@ -97,6 +125,34 @@ public class ProceduralGrid : MonoBehaviour
         collider = GetComponent<MeshCollider>();
         MakeProceduralGrid();
         UpdateMesh();
-//        Debug.Log("Mesh Created");
+        Debug.Log("Mesh Created");
+    }
+    
+    public ProceduralGrid()
+    {
+    cellSize = 1f;
+    gridOffset = 0;
+    gridOffsetAdd = 0.01f;
+    gridSize = 20;
+    terrainMovementTime = 0.01f;
+    }
+
+    public ProceduralGrid(float x, float y, float z)
+    {
+    cellSize = 1f;
+    gridOffset = 0;
+    gridOffsetAdd = 0.01f;
+    gridSize = 20;
+    terrainMovementTime = 0.01f;
+    transform.position.Set(x,y,z);
+    }
+
+    public ProceduralGrid(float cellSize, float gridOffset, float gridOffsetAdd, int gridSize,float terrainMovementTime)
+    {
+    this.cellSize = cellSize;
+    this.gridOffset = gridOffset;
+    this.gridOffsetAdd = gridOffsetAdd;
+    this.gridSize = gridSize;
+    this.terrainMovementTime = terrainMovementTime;
     }
 }
